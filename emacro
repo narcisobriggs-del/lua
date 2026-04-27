@@ -1,0 +1,163 @@
+-- Essential for re-executing on teleport
+local queue_on_teleport = (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport) or (queue_on_teleport)
+
+if queue_on_teleport then
+    queue_on_teleport([[loadstring(game:HttpGet("YOUR_SCRIPT_LINK_HERE"))()]])
+    -- Note: If you are pasting the whole script into an executor, 
+    -- you'd replace the line above with the entire script's source.
+end
+
+-- Wait for game to load to prevent UI errors
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+local function InitializeMacro()
+    local pGui = player:WaitForChild("PlayerGui")
+
+    -- Cleanup
+    if pGui:FindFirstChild("MacroSliderUI") then pGui.MacroSliderUI:Destroy() end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "MacroSliderUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = pGui
+
+    -- UI Main Frame
+    local Main = Instance.new("Frame")
+    Main.Name = "Main"
+    Main.Parent = ScreenGui
+    Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Main.Position = UDim2.new(0.5, -125, 0.5, -150)
+    Main.Size = UDim2.new(0, 250, 0, 320)
+    Main.Active = true
+    Main.Draggable = true
+
+    -- Variables
+    local Enabled = true -- Auto-on on execute
+    local Bind = Enum.KeyCode.E
+    local DelayVal = 0.1 -- Requested Default
+    local HoldVal = 0.25 -- Requested Default
+    local IsBinding = false
+
+    -- Macro Toggle Button
+    local Toggle = Instance.new("TextButton")
+    Toggle.Size = UDim2.new(0, 230, 0, 40)
+    Toggle.Position = UDim2.new(0, 10, 0, 45)
+    Toggle.Font = Enum.Font.GothamBold
+    Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Toggle.Parent = Main
+
+    local function SetState(state)
+        Enabled = state
+        Toggle.Text = Enabled and "MACRO: ON" or "MACRO: OFF"
+        Toggle.BackgroundColor3 = Enabled and Color3.fromRGB(50, 150, 50) or Color3.fromRGB(150, 50, 50)
+    end
+    
+    SetState(true) -- Force ON at start
+
+    Toggle.MouseButton1Click:Connect(function() SetState(not Enabled) end)
+
+    -- Bind Button logic
+    local BindBtn = Instance.new("TextButton")
+    BindBtn.Size = UDim2.new(0, 230, 0, 35)
+    BindBtn.Position = UDim2.new(0, 10, 0, 95)
+    BindBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    BindBtn.Text = "BIND: E"
+    BindBtn.Font = Enum.Font.Gotham
+    BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    BindBtn.Parent = Main
+
+    BindBtn.MouseButton1Click:Connect(function()
+        IsBinding = true
+        BindBtn.Text = "..."
+    end)
+
+    -- Slider Function
+    local function CreateSlider(name, pos, default, max, callback)
+        local SliderFrame = Instance.new("Frame")
+        SliderFrame.Size = UDim2.new(0, 230, 0, 50)
+        SliderFrame.Position = pos
+        SliderFrame.BackgroundTransparency = 1
+        SliderFrame.Parent = Main
+
+        local Label = Instance.new("TextLabel")
+        Label.Size = UDim2.new(1, 0, 0, 20)
+        Label.Text = name .. ": " .. default .. "s"
+        Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        Label.BackgroundTransparency = 1
+        Label.Font = Enum.Font.Gotham
+        Label.Parent = SliderFrame
+
+        local BarContainer = Instance.new("Frame")
+        BarContainer.Size = UDim2.new(1, 0, 0, 6)
+        BarContainer.Position = UDim2.new(0, 0, 0, 25)
+        BarContainer.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        BarContainer.Parent = SliderFrame
+
+        local Fill = Instance.new("Frame")
+        Fill.Size = UDim2.new(default/max, 0, 1, 0)
+        Fill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+        Fill.BorderSizePixel = 0
+        Fill.Parent = BarContainer
+
+        local Button = Instance.new("TextButton")
+        Button.Size = UDim2.new(1, 0, 1, 0)
+        Button.BackgroundTransparency = 1
+        Button.Text = ""
+        Button.Parent = BarContainer
+
+        local function UpdateSlider()
+            local mousePos = UIS:GetMouseLocation().X
+            local barPos = BarContainer.AbsolutePosition.X
+            local barSize = BarContainer.AbsoluteSize.X
+            local percent = math.clamp((mousePos - barPos) / barSize, 0, 1)
+            local value = math.max(0.01, math.floor(percent * max * 100) / 100)
+            Fill.Size = UDim2.new(percent, 0, 1, 0)
+            Label.Text = name .. ": " .. value .. "s"
+            callback(value)
+        end
+
+        local dragging = false
+        Button.MouseButton1Down:Connect(function() dragging = true end)
+        UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+        RunService.RenderStepped:Connect(function() if dragging then UpdateSlider() end end)
+    end
+
+    CreateSlider("DELAY", UDim2.new(0, 10, 0, 150), DelayVal, 5, function(v) DelayVal = v end)
+    CreateSlider("HOLD", UDim2.new(0, 10, 0, 220), HoldVal, 5, function(v) HoldVal = v end)
+
+    -- Handle Binds
+    UIS.InputBegan:Connect(function(input, proc)
+        if proc and not IsBinding then return end
+        if IsBinding then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                Bind = input.KeyCode
+                BindBtn.Text = "BIND: " .. input.KeyCode.Name
+                IsBinding = false
+            end
+        elseif input.KeyCode == Bind then
+            SetState(not Enabled)
+        end
+    end)
+
+    -- Execution Loop
+    task.spawn(function()
+        while ScreenGui.Parent do
+            if Enabled then
+                -- Add your specific keypress or action here
+                task.wait(HoldVal)
+                task.wait(DelayVal)
+            else
+                task.wait(0.1)
+            end
+        end
+    end)
+end
+
+InitializeMacro()
