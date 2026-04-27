@@ -1,10 +1,9 @@
--- Essential for re-executing on teleport
+-- Essential for re-executing on teleport/rejoin
+local scriptURL = "https://raw.githubusercontent.com/narcisobriggs-del/lua/main/emacro"
 local queue_on_teleport = (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport) or (queue_on_teleport)
 
 if queue_on_teleport then
-    queue_on_teleport([[loadstring(game:HttpGet("YOUR_SCRIPT_LINK_HERE"))()]])
-    -- Note: If you are pasting the whole script into an executor, 
-    -- you'd replace the line above with the entire script's source.
+    queue_on_teleport('loadstring(game:HttpGet("' .. scriptURL .. '"))()')
 end
 
 -- Wait for game to load to prevent UI errors
@@ -20,8 +19,10 @@ local player = Players.LocalPlayer
 local function InitializeMacro()
     local pGui = player:WaitForChild("PlayerGui")
 
-    -- Cleanup
-    if pGui:FindFirstChild("MacroSliderUI") then pGui.MacroSliderUI:Destroy() end
+    -- Cleanup old UI if it exists
+    if pGui:FindFirstChild("MacroSliderUI") then 
+        pGui.MacroSliderUI:Destroy() 
+    end
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "MacroSliderUI"
@@ -33,13 +34,43 @@ local function InitializeMacro()
     Main.Name = "Main"
     Main.Parent = ScreenGui
     Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Main.BorderSizePixel = 0
     Main.Position = UDim2.new(0.5, -125, 0.5, -150)
     Main.Size = UDim2.new(0, 250, 0, 320)
     Main.Active = true
     Main.Draggable = true
 
+    -- Title Label
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Parent = Main
+    Title.BackgroundTransparency = 1
+    Title.Position = UDim2.new(0, 10, 0, 0)
+    Title.Size = UDim2.new(0, 200, 0, 35)
+    Title.Font = Enum.Font.GothamBold
+    Title.Text = "MACRO SETTINGS"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 14
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Close Button (X)
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Name = "CloseBtn"
+    CloseBtn.Parent = Main
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    CloseBtn.Position = UDim2.new(1, -30, 0, 5)
+    CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.Text = "X"
+    CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseBtn.TextSize = 14
+    
+    CloseBtn.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
+
     -- Variables
-    local Enabled = true -- Auto-on on execute
+    local Enabled = true -- Auto-ON on execute
     local Bind = Enum.KeyCode.E
     local DelayVal = 0.1 -- Requested Default
     local HoldVal = 0.25 -- Requested Default
@@ -59,7 +90,7 @@ local function InitializeMacro()
         Toggle.BackgroundColor3 = Enabled and Color3.fromRGB(50, 150, 50) or Color3.fromRGB(150, 50, 50)
     end
     
-    SetState(true) -- Force ON at start
+    SetState(true) -- Initialize as ON
 
     Toggle.MouseButton1Click:Connect(function() SetState(not Enabled) end)
 
@@ -125,14 +156,22 @@ local function InitializeMacro()
 
         local dragging = false
         Button.MouseButton1Down:Connect(function() dragging = true end)
-        UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-        RunService.RenderStepped:Connect(function() if dragging then UpdateSlider() end end)
+        UIS.InputEnded:Connect(function(input) 
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                dragging = false 
+            end 
+        end)
+        
+        RunService.RenderStepped:Connect(function() 
+            if dragging then UpdateSlider() end 
+        end)
     end
 
+    -- Init Sliders
     CreateSlider("DELAY", UDim2.new(0, 10, 0, 150), DelayVal, 5, function(v) DelayVal = v end)
     CreateSlider("HOLD", UDim2.new(0, 10, 0, 220), HoldVal, 5, function(v) HoldVal = v end)
 
-    -- Handle Binds
+    -- Input Handling (Binds)
     UIS.InputBegan:Connect(function(input, proc)
         if proc and not IsBinding then return end
         if IsBinding then
@@ -150,7 +189,8 @@ local function InitializeMacro()
     task.spawn(function()
         while ScreenGui.Parent do
             if Enabled then
-                -- Add your specific keypress or action here
+                -- Add specific game actions here if needed
+                print("Macro Active | Hold:", HoldVal, "Delay:", DelayVal)
                 task.wait(HoldVal)
                 task.wait(DelayVal)
             else
